@@ -1,12 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/lib/supabase/client';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   TrendingUp,
   Users,
@@ -44,11 +50,12 @@ interface MarketDetailProps {
 }
 
 export function MarketDetail({ market, userBalance, isAuthenticated }: MarketDetailProps) {
-  const router = useRouter();
   const [selectedOutcome, setSelectedOutcome] = useState<'yes' | 'no' | null>(null);
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const yesPrice = Number(market.yes_price);
   const noPrice = Number(market.no_price);
@@ -83,7 +90,9 @@ export function MarketDetail({ market, userBalance, isAuthenticated }: MarketDet
     return (betAmount * (100 / price)).toFixed(2);
   };
 
-  const handlePlaceBet = async () => {
+  const potentialReturn = useMemo(() => calculatePotentialReturn(), [selectedOutcome, amount]);
+
+  const handlePlaceBet = () => {
     if (!selectedOutcome || !amount || !isAuthenticated) return;
 
     const betAmount = parseFloat(amount);
@@ -97,52 +106,25 @@ export function MarketDetail({ market, userBalance, isAuthenticated }: MarketDet
       return;
     }
 
-    setLoading(true);
     setError('');
+    setConfirmOpen(true);
+  };
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError('Please sign in to place a prediction');
+  const handleConfirmBet = () => {
+    if (!selectedOutcome || !amount) return;
+    setLoading(true);
+    setSuccessMessage('');
+
+    // UI-only confirmation for hackathon demo. Wire onchain later.
+    setTimeout(() => {
       setLoading(false);
-      return;
-    }
-
-    const { error: txError } = await supabase
-      .from('transactions')
-      .insert({
-        user_id: user.id,
-        type: 'bet',
-        amount: betAmount,
-        description: `${selectedOutcome.toUpperCase()} on: ${market.question.slice(0, 50)}`,
-      });
-
-    if (txError) {
-      setError('Failed to process bet');
-      setLoading(false);
-      return;
-    }
-
-    const { error: balanceError } = await supabase
-      .from('profiles')
-      .update({ balance: userBalance - betAmount })
-      .eq('id', user.id);
-
-    if (balanceError) {
-      setError('Failed to update balance');
-      setLoading(false);
-      return;
-    }
-
-    const newVolume = volume + betAmount;
-    await supabase
-      .from('markets')
-      .update({ volume: newVolume })
-      .eq('id', market.id);
-
-    router.refresh();
-    setAmount('');
-    setSelectedOutcome(null);
-    setLoading(false);
+      setConfirmOpen(false);
+      setSuccessMessage(
+        `Prediction queued: ${selectedOutcome.toUpperCase()} for ${amount} tokens.`
+      );
+      setAmount('');
+      setSelectedOutcome(null);
+    }, 600);
   };
 
   const canPlaceBet = isAuthenticated && userBalance > 0 && selectedOutcome && amount && parseFloat(amount) > 0;
@@ -412,7 +394,7 @@ export function MarketDetail({ market, userBalance, isAuthenticated }: MarketDet
                   <div className="flex items-center justify-between">
                     <span className="text-gray-400">Potential Return</span>
                     <span className="text-xl font-bold text-green-400">
-                      {calculatePotentialReturn()} tokens
+                      {potentialReturn} tokens
                     </span>
                   </div>
                 </div>
@@ -421,6 +403,12 @@ export function MarketDetail({ market, userBalance, isAuthenticated }: MarketDet
               {error && (
                 <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                   <p className="text-red-400 text-sm">{error}</p>
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                  <p className="text-green-400 text-sm">{successMessage}</p>
                 </div>
               )}
 
@@ -443,6 +431,54 @@ export function MarketDetail({ market, userBalance, isAuthenticated }: MarketDet
                   ? 'Enter Amount'
                   : `Place ${selectedOutcome.toUpperCase()} Prediction`}
               </Button>
+
+              <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                <DialogContent className="bg-gray-900 border-gray-800">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">Confirm prediction</DialogTitle>
+                    <DialogDescription className="text-gray-400">
+                      This will be submitted onchain in the next step.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 text-sm text-gray-300">
+                    <div className="flex items-center justify-between">
+                      <span>Outcome</span>
+                      <span className="font-semibold text-white">
+                        {selectedOutcome?.toUpperCase() || '-'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Amount</span>
+                      <span className="font-semibold text-white">
+                        {amount || '0'} tokens
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Potential Return</span>
+                      <span className="font-semibold text-green-400">
+                        {potentialReturn || '0.00'} tokens
+                      </span>
+                    </div>
+                  </div>
+                  <DialogFooter className="mt-4">
+                    <Button
+                      variant="outline"
+                      className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                      onClick={() => setConfirmOpen(false)}
+                      disabled={loading}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleConfirmBet}
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                      disabled={loading}
+                    >
+                      {loading ? 'Confirming...' : 'Confirm'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
         </CardContent>

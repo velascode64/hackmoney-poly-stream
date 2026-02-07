@@ -49,11 +49,27 @@ export function Navbar() {
             <div className="hidden md:flex items-center gap-6">
               <Link
                 href="/"
-                className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-purple-400 ${pathname === '/' ? 'text-purple-400' : 'text-gray-400'
-                  }`}
+                className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-purple-400 ${
+                  pathname === '/' ? 'text-purple-400' : 'text-gray-400'
+                }`}
+              >
+                <TrendingUp className="h-4 w-4" />
+                Home
+              </Link>
+              <Link
+                href="/markets"
+                className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-purple-400 ${
+                  pathname === '/markets' ? 'text-purple-400' : 'text-gray-400'
+                }`}
               >
                 <TrendingUp className="h-4 w-4" />
                 Markets
+              </Link>
+              <Link
+                href="/product-overview#manifiesto"
+                className="flex items-center gap-2 text-sm font-medium text-gray-400 transition-colors hover:text-yellow-300"
+              >
+                Manifiesto ETH
               </Link>
             </div>
           </div>

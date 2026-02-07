@@ -6,6 +6,13 @@ import type { Database } from '@/types/database';
 import { LiveStreamCard } from '@/components/live-stream-card';
 import { StreamerCard } from '@/components/streamer-card';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type Streamer = Database['public']['Tables']['streamers']['Row'];
 
@@ -19,6 +26,7 @@ export function LiveStreamsSection({
   offlineStreamers,
 }: LiveStreamsSectionProps) {
   const [showOffline, setShowOffline] = useState(false);
+  const [selectedGame, setSelectedGame] = useState('all');
 
   const hasLiveStreams = liveStreams.length > 0;
   const hasOfflineStreamers = offlineStreamers.length > 0;
@@ -41,6 +49,20 @@ export function LiveStreamsSection({
     [offlineStreamers]
   );
 
+  const gameOptions = useMemo(() => {
+    const games = new Set(
+      liveStreams
+        .map((stream) => stream.game_name)
+        .filter((name) => name && name.trim().length > 0)
+    );
+    return ['all', ...Array.from(games).sort((a, b) => a.localeCompare(b))];
+  }, [liveStreams]);
+
+  const filteredLiveStreams = useMemo(() => {
+    if (selectedGame === 'all') return liveStreams;
+    return liveStreams.filter((stream) => stream.game_name === selectedGame);
+  }, [liveStreams, selectedGame]);
+
   return (
     <section className="mb-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -51,14 +73,29 @@ export function LiveStreamsSection({
           </p>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          className="border-gray-800 text-gray-300 hover:bg-gray-800 hover:text-white"
-          onClick={() => setShowOffline((value) => !value)}
-        >
-          {showOffline ? 'Hide Offline' : 'Show Offline'}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Select value={selectedGame} onValueChange={setSelectedGame}>
+            <SelectTrigger className="w-[200px] bg-gray-900 border-gray-800 text-gray-200">
+              <SelectValue placeholder="All games" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-900 border-gray-800 text-gray-200">
+              {gameOptions.map((game) => (
+                <SelectItem key={game} value={game}>
+                  {game === 'all' ? 'All games' : game}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="border-gray-800 text-gray-300 hover:bg-gray-800 hover:text-white"
+            onClick={() => setShowOffline((value) => !value)}
+          >
+            {showOffline ? 'Hide Offline' : 'Show Offline'}
+          </Button>
+        </div>
       </div>
 
       {!hasLiveStreams ? (
@@ -75,7 +112,7 @@ export function LiveStreamsSection({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {liveStreams.map((stream) => (
+          {filteredLiveStreams.map((stream) => (
             <LiveStreamCard key={stream.id} stream={stream} />
           ))}
         </div>
